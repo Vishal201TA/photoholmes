@@ -202,8 +202,19 @@ class TruFor(BaseTorchMethod):
             self.decode_head_conf.to(self.device)
         if hasattr(self, "detection") and self.detection is not None:
             self.detection.to(self.device)
-        self.dncnn.to(self.device)
-
+        self.dncnn = make_net(
+            3,
+            kernels=[3] * num_levels,
+            features=[64] * (num_levels - 1) + [out_channel],
+            bns=[False] + [True] * (num_levels - 2) + [False],
+            acts=npp_activations,
+            dilats=[1] * num_levels,
+            bn_momentum=0.1,
+            padding=1,
+        ).to(self.device)
+        
+        for layer in self.dncnn:
+            layer.to(self.device)
         # Move the full module
         self.to(self.device)
         self.eval()
