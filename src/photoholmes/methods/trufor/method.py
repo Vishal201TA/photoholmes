@@ -212,8 +212,20 @@ class TruFor(BaseTorchMethod):
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print("[DEBUG] TruFor device is:", self.device)
-        self.to(self.device)
+
+        # Explicitly move all components to device
+        self.backbone.to(self.device)
+        if self.confidence_backbone is not None:
+            self.confidence_backbone.to(self.device)
+        self.decode_head.to(self.device)
+        if self.decode_head_conf is not None:
+            self.decode_head_conf.to(self.device)
+        if hasattr(self, "detection") and self.detection is not None:
+            self.detection.to(self.device)
+        self.dncnn.to(self.device)
+
         self.eval()
+
 
     def init_weights(self):
         """
