@@ -215,6 +215,7 @@ class TruFor(BaseTorchMethod):
             self.init_weights()
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        
         print("[DEBUG] TruFor device is:", self.device)
         print("dncnn conv0 weight device:", self.dncnn[0].weight.device)
 
@@ -228,7 +229,7 @@ class TruFor(BaseTorchMethod):
         if hasattr(self, "detection") and self.detection is not None:
             self.detection.to(self.device)
         self.dncnn.to(self.device)
-
+        self.to(self.device)
         self.eval()
 
 
