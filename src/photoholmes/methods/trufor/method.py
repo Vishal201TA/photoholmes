@@ -115,11 +115,12 @@ class TruFor(BaseTorchMethod):
         self.backbone, self.channels = create_backbone(
             self.arch_config.backbone, self.norm_layer
         )
-
+        self.backbone = self.backbone.to(self.device)
         if self.arch_config.confidence_backbone is not None:
             self.confidence_backbone, self.channels_conf = create_backbone(
                 self.arch_config.confidence_backbone, self.norm_layer
             )
+            self.confidence_backbone = self.confidence_backbone.to(self.device)
         else:
             self.confidence_backbone = None
 
@@ -132,7 +133,8 @@ class TruFor(BaseTorchMethod):
                 num_classes=self.arch_config.num_classes,
                 norm_layer=self.norm_layer,
                 embed_dim=self.arch_config.decoder_embed_dim,
-            )
+            ).to(self.device)
+
 
             self.decode_head_conf: Optional[nn.Module]
             if self.arch_config.confidence:
@@ -141,26 +143,23 @@ class TruFor(BaseTorchMethod):
                     num_classes=1,
                     norm_layer=self.norm_layer,
                     embed_dim=self.arch_config.decoder_embed_dim,
-                )
+                ).to(self.device)
             else:
                 self.decode_head_conf = None
 
             self.conf_detection = None
-            if self.arch_config.detection is not None:
-                if self.arch_config.detection is None:
-                    pass
+            if self.arch_config.detection == "confpool":
+                self.conf_detection = "confpool"
+                assert self.arch_config.confidence
+                self.detection = nn.Sequential(
+                    nn.Linear(in_features=8, out_features=128),
+                    nn.ReLU(),
+                    nn.Dropout(p=0.5),
+                    nn.Linear(in_features=128, out_features=1),
+                ).to(self.device)
+            elif self.arch_config.detection is not None:
+                raise NotImplementedError("Detection mechanism not implemented")
 
-                elif self.arch_config.detection == "confpool":
-                    self.conf_detection = "confpool"
-                    assert self.arch_config.confidence
-                    self.detection = nn.Sequential(
-                        nn.Linear(in_features=8, out_features=128),
-                        nn.ReLU(),
-                        nn.Dropout(p=0.5),
-                        nn.Linear(in_features=128, out_features=1),
-                    )
-                else:
-                    raise NotImplementedError("Detection mechanism not implemented")
 
         else:
             raise NotImplementedError("Decoder not implemented")
@@ -198,7 +197,7 @@ class TruFor(BaseTorchMethod):
             * num_levels,
             bn_momentum=0.1,
             padding=1,
-        )
+        ).to(self.device)
 
         if self.arch_config.preprocess == "imagenet":  # RGB (mean and variance)
             self.prepro = preprc_imagenet_torch
