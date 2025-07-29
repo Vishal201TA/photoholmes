@@ -87,139 +87,113 @@ class TruFor(BaseTorchMethod):
         device: str = "cpu",
     ):
         """
+        Initializes the TruFor model.
+
         Args:
-            arch_config (Union[TruForArchConfig, Literal["pretrained"]]): Specifies
-                the architecture configuration.
-            weights (Optional[Union[str, dict]]): Path to the weights file or a
-                dictionary containing model weights.
-            use_confidence (bool): Whether to use confidence maps to multiply the
-                output heatmap in the benchmark method.
+            arch_config: Configuration for the model architecture or 'pretrained'.
+            weights: Path to weights or dict of weights.
+            use_confidence: Whether to multiply heatmap with confidence map.
+            device: 'cpu' or 'cuda'.
         """
         super().__init__()
+
+        # Set device at the beginning
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        print("[DEBUG] TruFor using device:", self.device)
+
+        # Print warning
         logger.warn(
             f"{YELLOW_COLOR}Trufor has a custom research only licence. "
-            "See the LICENSE inside the method folder or at https://github.com/grip-unina/TruFor/blob/main/test_docker/LICENSE.txt. "  # noqa: E501
-            "By continuing the use, you are agreeing to the conditions on their "
-            f"license.{END_COLOR}"
+            "See the LICENSE inside the method folder or at https://github.com/grip-unina/TruFor/blob/main/test_docker/LICENSE.txt. "
+            f"By continuing the use, you are agreeing to the conditions on their license.{END_COLOR}"
         )
 
+        # Resolve pretrained config
         if arch_config == "pretrained":
             arch_config = pretrained_arch
 
-        self.use_confidence = use_confidence
         self.arch_config = arch_config
+        self.use_confidence = use_confidence
         self.norm_layer = nn.BatchNorm2d
         self.mods = arch_config.mods
 
-        # import backbone and decoder
-        self.backbone, self.channels = create_backbone(
-            self.arch_config.backbone, self.norm_layer
-        )
-        self.backbone = self.backbone.to(self.device)
-        if self.arch_config.confidence_backbone is not None:
+        # === Backbone ===
+        self.backbone, self.channels = create_backbone(arch_config.backbone, self.norm_layer)
+
+        # === Confidence Backbone ===
+        if arch_config.confidence_backbone is not None:
             self.confidence_backbone, self.channels_conf = create_backbone(
-                self.arch_config.confidence_backbone, self.norm_layer
+                arch_config.confidence_backbone, self.norm_layer
             )
-            self.confidence_backbone = self.confidence_backbone.to(self.device)
         else:
             self.confidence_backbone = None
 
-        if self.arch_config.decoder == "MLPDecoder":
-            logger.info("Using MLP Decoder")
+        # === Decoder ===
+        if arch_config.decoder == "MLPDecoder":
             from .models.cmx.decoders.MLPDecoder import DecoderHead
 
             self.decode_head = DecoderHead(
                 in_channels=self.channels,
-                num_classes=self.arch_config.num_classes,
+                num_classes=arch_config.num_classes,
                 norm_layer=self.norm_layer,
-                embed_dim=self.arch_config.decoder_embed_dim,
-            ).to(self.device)
+                embed_dim=arch_config.decoder_embed_dim,
+            )
 
-
-            self.decode_head_conf: Optional[nn.Module]
-            if self.arch_config.confidence:
+            if arch_config.confidence:
                 self.decode_head_conf = DecoderHead(
                     in_channels=self.channels,
                     num_classes=1,
                     norm_layer=self.norm_layer,
-                    embed_dim=self.arch_config.decoder_embed_dim,
-                ).to(self.device)
+                    embed_dim=arch_config.decoder_embed_dim,
+                )
             else:
                 self.decode_head_conf = None
 
             self.conf_detection = None
-            if self.arch_config.detection == "confpool":
+            if arch_config.detection == "confpool":
+                assert arch_config.confidence
                 self.conf_detection = "confpool"
-                assert self.arch_config.confidence
                 self.detection = nn.Sequential(
                     nn.Linear(in_features=8, out_features=128),
                     nn.ReLU(),
                     nn.Dropout(p=0.5),
                     nn.Linear(in_features=128, out_features=1),
-                ).to(self.device)
-            elif self.arch_config.detection is not None:
+                )
+            elif arch_config.detection is not None:
                 raise NotImplementedError("Detection mechanism not implemented")
-
-
         else:
             raise NotImplementedError("Decoder not implemented")
 
+        # === Noiseprint++ / DnCNN ===
         num_levels = 17
         out_channel = 1
-        npp_activations = [ActivationOptions.RELU] * (num_levels - 1) + [
-            ActivationOptions.LINEAR
-        ]
+        npp_activations = [ActivationOptions.RELU] * (num_levels - 1) + [ActivationOptions.LINEAR]
+
         self.dncnn = make_net(
-            3,
-            kernels=[
-                3,
-            ]
-            * num_levels,
-            features=[
-                64,
-            ]
-            * (num_levels - 1)
-            + [out_channel],
-            bns=[
-                False,
-            ]
-            + [
-                True,
-            ]
-            * (num_levels - 2)
-            + [
-                False,
-            ],
+            in_channels=3,
+            kernels=[3] * num_levels,
+            features=[64] * (num_levels - 1) + [out_channel],
+            bns=[False] + [True] * (num_levels - 2) + [False],
             acts=npp_activations,
-            dilats=[
-                1,
-            ]
-            * num_levels,
+            dilats=[1] * num_levels,
             bn_momentum=0.1,
             padding=1,
-        ).to(self.device)
-        # self.dncnn.to(self.device)  
-        
-        for layer in self.dncnn:
-            layer.to(self.device) 
+        )
 
-        if self.arch_config.preprocess == "imagenet":  # RGB (mean and variance)
+        # === Preprocessing ===
+        if arch_config.preprocess == "imagenet":
             self.prepro = preprc_imagenet_torch
         else:
-            assert False
+            raise ValueError("Unsupported preprocessing type")
 
+        # === Weights ===
         if weights is not None:
             self.load_weights(weights)
         else:
-            logger.warn("No weight file provided. Initiralizing random weights.")
+            logger.warn("No weight file provided. Initializing random weights.")
             self.init_weights()
 
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        
-        print("[DEBUG] TruFor device is:", self.device)
-        print("dncnn conv0 weight device:", self.dncnn[0].weight.device)
-
-        # Explicitly move all components to device
+        # === Move Everything to Device ===
         self.backbone.to(self.device)
         if self.confidence_backbone is not None:
             self.confidence_backbone.to(self.device)
@@ -229,9 +203,16 @@ class TruFor(BaseTorchMethod):
         if hasattr(self, "detection") and self.detection is not None:
             self.detection.to(self.device)
         self.dncnn.to(self.device)
+
+        # Move the full module
         self.to(self.device)
         self.eval()
 
+        # Debug prints
+        print("✅ [DEBUG] All model parts moved to device.")
+        print("DnCNN first conv layer device:", self.dncnn[0].weight.device)
+
+    
 
     def init_weights(self):
         """
