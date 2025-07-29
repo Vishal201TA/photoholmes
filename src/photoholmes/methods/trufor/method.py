@@ -353,10 +353,16 @@ class TruFor(BaseTorchMethod):
             BenchmarkOutput: Contains the heatmap and detection and placeholder for
             mask.
         """
+        image = image.to(self.device)
         heatmap, conf, det, _ = self.predict(image)
-        if self.use_confidence:
-            heatmap = heatmap * conf
-        return {"heatmap": heatmap, "mask": None, "detection": det}
+        if self.use_confidence and conf is not None:
+        heatmap = heatmap * conf.to(self.device)
+
+        return {
+            "heatmap": heatmap.to(self.device),
+            "mask": None,
+            "detection": det.to(self.device) if det is not None else None
+        }
 
     @classmethod
     def from_config(cls, config: Optional[TruForConfig | dict | str | Path]):
