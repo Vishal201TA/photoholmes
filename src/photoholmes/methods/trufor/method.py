@@ -198,6 +198,10 @@ class TruFor(BaseTorchMethod):
             bn_momentum=0.1,
             padding=1,
         ).to(self.device)
+        # self.dncnn.to(self.device)  
+        
+        for layer in self.dncnn:
+            layer.to(self.device) 
 
         if self.arch_config.preprocess == "imagenet":  # RGB (mean and variance)
             self.prepro = preprc_imagenet_torch
@@ -212,6 +216,7 @@ class TruFor(BaseTorchMethod):
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print("[DEBUG] TruFor device is:", self.device)
+        print("dncnn conv0 weight device:", self.dncnn[0].weight.device)
 
         # Explicitly move all components to device
         self.backbone.to(self.device)
