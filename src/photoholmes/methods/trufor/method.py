@@ -212,6 +212,7 @@ class TruFor(BaseTorchMethod):
             self.init_weights()
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        print("[DEBUG] TruFor device is:", self.device)
         self.to(self.device)
         self.eval()
 
@@ -295,6 +296,7 @@ class TruFor(BaseTorchMethod):
             Tuple[Tensor, Optional[Tensor], Optional[Tensor], Optional[Tensor]]: Output
             heatmap, confidence map, detection score, and Noiseprint++ map.
         """
+        print(f"[DEBUG] Forward input image device: {rgb.device}")
         # Noiseprint++ extraction
         if "NP++" in self.mods:
             modal_x = self.dncnn(rgb)
@@ -306,6 +308,10 @@ class TruFor(BaseTorchMethod):
             rgb = self.prepro(rgb)
 
         out, conf, det = self.encode_decode(rgb, modal_x)
+        print("Backbone device:", next(self.backbone.parameters()).device)
+        print("DNCNN device:", next(self.dncnn.parameters()).device)
+        print("DecodeHead device:", next(self.decode_head.parameters()).device)
+
         return out, conf, det, modal_x
 
     def predict(
@@ -321,10 +327,11 @@ class TruFor(BaseTorchMethod):
             Tuple[Tensor, Optional[Tensor], Optional[Tensor], Optional[Tensor]]: Output
             heatmap, confidence map, detection score, and Noiseprint++ map.
         """
+        
         if image.ndim == 3:
             image = image.unsqueeze(0)
         image = image.to(self.device)
-
+        print(f"[DEBUG] Input image device: {image.device}")
         with torch.no_grad():
             out, conf, det, npp = self.forward(image)
 
@@ -353,7 +360,9 @@ class TruFor(BaseTorchMethod):
             BenchmarkOutput: Contains the heatmap and detection and placeholder for
             mask.
         """
+        print(f"[DEBUG] Benchmark input device before transfer: {image.device}")
         image = image.to(self.device)
+        print(f"[DEBUG] Benchmark input device after transfer: {image.device}")
         heatmap, conf, det, _ = self.predict(image)
         if self.use_confidence and conf is not None:
         heatmap = heatmap * conf.to(self.device)
