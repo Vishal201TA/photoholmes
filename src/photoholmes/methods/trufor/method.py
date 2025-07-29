@@ -189,9 +189,11 @@ class TruFor(BaseTorchMethod):
         # === Weights ===
         if weights is not None:
             self.load_weights(weights)
+            self.to(self.device) 
         else:
             logger.warn("No weight file provided. Initializing random weights.")
             self.init_weights()
+            self.to(self.device) 
 
         # === Move Everything to Device ===
         self.backbone.to(self.device)
