@@ -98,7 +98,8 @@ class TruFor(BaseTorchMethod):
         super().__init__()
 
         # Set device at the beginning
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device(device)
+
         print("[DEBUG] TruFor using device:", self.device)
 
         # Print warning
@@ -178,7 +179,7 @@ class TruFor(BaseTorchMethod):
             dilats=[1] * num_levels,
             bn_momentum=0.1,
             padding=1,
-        )
+        ).to(self.device)
 
         # === Preprocessing ===
         if arch_config.preprocess == "imagenet":
@@ -204,20 +205,7 @@ class TruFor(BaseTorchMethod):
             self.decode_head_conf.to(self.device)
         if hasattr(self, "detection") and self.detection is not None:
             self.detection.to(self.device)
-        self.dncnn = make_net(
-            3,
-            kernels=[3] * num_levels,
-            features=[64] * (num_levels - 1) + [out_channel],
-            bns=[False] + [True] * (num_levels - 2) + [False],
-            acts=npp_activations,
-            dilats=[1] * num_levels,
-            bn_momentum=0.1,
-            padding=1,
-        ).to(self.device)
         
-        for layer in self.dncnn:
-            layer.to(self.device)
-        # Move the full module
         self.to(self.device)
         self.eval()
 
@@ -307,7 +295,7 @@ class TruFor(BaseTorchMethod):
             Tuple[Tensor, Optional[Tensor], Optional[Tensor], Optional[Tensor]]: Output
             heatmap, confidence map, detection score, and Noiseprint++ map.
         """
-        print(f"[DEBUG] Forward input image device: {rgb.device}")
+        
         # Noiseprint++ extraction
         if "NP++" in self.mods:
             modal_x = self.dncnn(rgb)
@@ -317,8 +305,11 @@ class TruFor(BaseTorchMethod):
 
         if self.prepro is not None:
             rgb = self.prepro(rgb)
-
+        rgb = rgb.to(self.device)
         out, conf, det = self.encode_decode(rgb, modal_x)
+        print("Input RGB device:", rgb.device)
+        print("DnCNN weight device:", self.dncnn[0].weight.device)
+
         print("Backbone device:", next(self.backbone.parameters()).device)
         print("DNCNN device:", next(self.dncnn.parameters()).device)
         print("DecodeHead device:", next(self.decode_head.parameters()).device)
@@ -372,7 +363,7 @@ class TruFor(BaseTorchMethod):
             mask.
         """
         print(f"[DEBUG] Benchmark input device before transfer: {image.device}")
-        image = image.to(self.device)
+        image = image.to(self.device).float()  
         print(f"[DEBUG] Benchmark input device after transfer: {image.device}")
         heatmap, conf, det, _ = self.predict(image)
         if self.use_confidence and conf is not None:
