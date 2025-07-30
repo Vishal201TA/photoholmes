@@ -295,7 +295,8 @@ class TruFor(BaseTorchMethod):
             Tuple[Tensor, Optional[Tensor], Optional[Tensor], Optional[Tensor]]: Output
             heatmap, confidence map, detection score, and Noiseprint++ map.
         """
-        
+        assert next(self.dncnn.parameters()).is_cuda, "❌ DnCNN not on GPU"
+
         # Noiseprint++ extraction
         if "NP++" in self.mods:
             modal_x = self.dncnn(rgb)
@@ -382,6 +383,7 @@ class TruFor(BaseTorchMethod):
 
         if isinstance(config, str) or isinstance(config, Path):
             config = load_yaml(str(config))
+            print(f"[DEBUG] Loaded config from {config}")
         elif config is None:
             config = {}
 
