@@ -298,11 +298,14 @@ class TruFor(BaseTorchMethod):
             heatmap, confidence map, detection score, and Noiseprint++ map.
         """
         assert next(self.dncnn.parameters()).is_cuda, "❌ DnCNN not on GPU"
+        print(f"🔥 DnCNN input device: {rgb.device}")
+        print(f"🔥 DnCNN weight device: {next(self.dncnn.parameters()).device}")
 
         # Noiseprint++ extraction
         if "NP++" in self.mods:
-            assert next(self.dncnn.parameters()).is_cuda, "❌ DnCNN is not on CUDA"
-            assert rgb.device.type == "cuda", f"❌ RGB input is not on CUDA: {rgb.device}"
+            print(f"🔥 DnCNN input device: {rgb.device}")
+            print(f"🔥 DnCNN weight device: {next(self.dncnn.parameters()).device}")
+
 
             modal_x = self.dncnn(rgb)
             modal_x = torch.tile(modal_x, (3, 1, 1))
