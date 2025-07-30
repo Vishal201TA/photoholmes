@@ -101,6 +101,8 @@ class TruFor(BaseTorchMethod):
         self.device = torch.device(device)
 
         print("[DEBUG] TruFor using device:", self.device)
+        assert self.device.type == "cuda", "❌ Device mismatch: expected CUDA, got CPU"
+
 
         # Print warning
         logger.warn(
@@ -299,6 +301,9 @@ class TruFor(BaseTorchMethod):
 
         # Noiseprint++ extraction
         if "NP++" in self.mods:
+            assert next(self.dncnn.parameters()).is_cuda, "❌ DnCNN is not on CUDA"
+            assert rgb.device.type == "cuda", f"❌ RGB input is not on CUDA: {rgb.device}"
+
             modal_x = self.dncnn(rgb)
             modal_x = torch.tile(modal_x, (3, 1, 1))
         else:
