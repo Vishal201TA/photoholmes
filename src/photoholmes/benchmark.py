@@ -364,6 +364,8 @@ class Benchmark:
             image_name (str): Name of the processed image.
             output (BenchmarkOutput): Output to save.
         """
+        if not self.save_method_outputs:
+            return
         image_save_path = output_path / "outputs" / image_name
         os.makedirs(image_save_path, exist_ok=True)
 
