@@ -246,6 +246,9 @@ class Benchmark:
             metrics_return["mask"] = mask_metrics.compute()
         if self._detection:
             metrics_return["detection"] = detection_metrics.compute()
+        
+        print("➡️ dataset class:", dataset.__class__)
+        print("➡️ dataset has attribute 'tampered_only':", hasattr(dataset, "tampered_only"))
 
         return metrics_return
 
