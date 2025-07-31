@@ -119,7 +119,7 @@ class TruFor(BaseTorchMethod):
         self.use_confidence = use_confidence
         self.norm_layer = nn.BatchNorm2d
         self.mods = arch_config.mods
-
+        self.tampered_only = False 
         # === Backbone ===
         self.backbone, self.channels = create_backbone(arch_config.backbone, self.norm_layer)
 
